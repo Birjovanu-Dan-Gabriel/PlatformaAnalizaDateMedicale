@@ -1,16 +1,16 @@
 preprocess_health_data <- function(raw_data) {
   require(dplyr)
-  #TODO adaugare nume 
-  #TODO user-ul sa se poate cauta cu nume si id
-  #
-  # Verificare structură date
+  
+  #Verificare structure date
   required_cols <- c("patient_id", "nume", "prenume", "age", "gender", "region", "weight_kg", "height_cm", "blood_pressure")
   if (!all(required_cols %in% names(raw_data))) {
     stop("Structură invalidă a datelor. Coloane necesare: ", paste(required_cols, collapse = ", "))
   }
   
+  #Prelucrea datelor
   clean_data <- raw_data %>%
     mutate(
+      nume_complet = paste(nume, prenume),
       across(c(age, weight_kg, height_cm), as.numeric),
       gender = as.character(gender),
       region = as.character(region),
@@ -23,12 +23,12 @@ preprocess_health_data <- function(raw_data) {
         TRUE ~ round(weight_kg/((height_cm/100)^2), 1)
       ),
       
-      # Validare tensiune arterială
+      # Validare tensiune arteriala
       bp_valid = grepl("^\\d+/\\d+$", blood_pressure),
       bp_systolic = ifelse(bp_valid, as.numeric(sapply(strsplit(blood_pressure, "/"), `[`, 1)), NA),
       bp_diastolic = ifelse(bp_valid, as.numeric(sapply(strsplit(blood_pressure, "/"), `[`, 2)), NA),
       
-      # Grupe de vârstă
+      # Crearea Grupelor de varsta
       age_group = cut(age,
                       breaks = c(0, 18, 35, 50, 65, Inf),
                       labels = c("0-18", "19-35", "36-50", "51-65", "65+"),
