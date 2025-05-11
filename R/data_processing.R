@@ -4,7 +4,7 @@ preprocess_health_data <- function(raw_data) {
   #TODO user-ul sa se poate cauta cu nume si id
   #
   # Verificare structură date
-  required_cols <- c("patient_id", "age", "gender", "region", "weight_kg", "height_cm", "blood_pressure")
+  required_cols <- c("patient_id", "nume", "prenume", "age", "gender", "region", "weight_kg", "height_cm", "blood_pressure")
   if (!all(required_cols %in% names(raw_data))) {
     stop("Structură invalidă a datelor. Coloane necesare: ", paste(required_cols, collapse = ", "))
   }

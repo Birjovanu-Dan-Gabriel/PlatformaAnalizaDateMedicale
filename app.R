@@ -42,6 +42,8 @@ server <- function(input, output, session) {
     } else {
       raw_data(data.frame(
         patient_id = integer(),
+        nume = character(),
+        prenume = character(),
         age = numeric(),
         gender = character(),
         region = character(),
@@ -66,6 +68,8 @@ server <- function(input, output, session) {
       tabsetPanel(
         tabPanel("Date Brute", 
                  DTOutput("raw_data_table"),
+                 textInput("search_patient", "Caută pacient (nume, prenume sau ID)"),
+                 actionButton("search_btn", "Caută"),
                  tags$hr(),
                  actionButton("process_data", "Procesează Date")),
         
@@ -75,9 +79,12 @@ server <- function(input, output, session) {
         
         tabPanel("Administrare",
                  fluidRow(
+                   # În UI (tabPanel Administrare):
                    column(6,
                           h4("Adăugare Date"),
                           numericInput("new_patient_id", "ID Pacient", value = max(raw_data()$patient_id, na.rm = TRUE) + 1),
+                          textInput("new_nume", "Nume", value = ""),
+                          textInput("new_prenume", "Prenume", value = ""),
                           numericInput("new_age", "Vârstă", value = 30),
                           selectInput("new_gender", "Gen", c("M", "F")),
                           textInput("new_region", "Regiune", value = "Urban"),
@@ -103,6 +110,16 @@ server <- function(input, output, session) {
                  ),
                  plotOutput("risk_plot")),
         tabPanel("Listă Pacienți",
+                 fluidRow(
+                   column(6,
+                          textInput("patient_search", "Caută pacient"),
+                          actionButton("search_btn", "Caută")
+                   ),
+                   column(6,
+                          selectInput("risk_filter", "Filtrează după risc",
+                                      choices = c("Toți", "Low", "Medium", "High"))
+                   )
+                 ),
                  DTOutput("patient_list"))
       )
     }
@@ -148,22 +165,35 @@ server <- function(input, output, session) {
                          server = TRUE)
   })
 
+  observeEvent(input$search_btn, {
+    search_term <- tolower(input$search_patient)
+    filtered <- raw_data() %>%
+      mutate(search_field = tolower(paste(nume, prenume, patient_id))) %>%
+      filter(grepl(search_term, search_field))
+    
+    output$raw_data_table <- renderDT({
+      datatable(filtered, editable = TRUE, options = list(scrollX = TRUE))
+    })
+  })
   
   observeEvent(input$add_patient, {
     # Validare date
     req(input$new_patient_id, input$new_age, input$new_gender)
     
     new_patient <- data.frame(
-      patient_id = as.numeric(input$new_patient_id),
-      age = as.numeric(input$new_age),
-      gender = as.character(input$new_gender),
-      region = as.character(input$new_region),
-      weight_kg = as.numeric(input$new_weight),
-      height_cm = as.numeric(input$new_height),
-      bmi = round(input$new_weight/((input$new_height/100)^2), 1),
-      blood_pressure = as.character(input$new_bp),
-      stringsAsFactors = FALSE
-    )
+      new_patient <- data.frame(
+        patient_id = as.numeric(input$new_patient_id),
+        nume = as.character(input$new_nume),
+        prenume = as.character(input$new_prenume),
+        age = as.numeric(input$new_age),
+        gender = as.character(input$new_gender),
+        region = as.character(input$new_region),
+        weight_kg = as.numeric(input$new_weight),
+        height_cm = as.numeric(input$new_height),
+        bmi = round(input$new_weight/((input$new_height/100)^2), 1),
+        blood_pressure = as.character(input$new_bp),
+        stringsAsFactors = FALSE
+      ))
     
     # Verificare format tensiune arterială
     if (!grepl("^\\d+/\\d+$", new_patient$blood_pressure)) {
@@ -185,6 +215,8 @@ server <- function(input, output, session) {
       updateNumericInput(session, "new_weight", value = 70)
       updateNumericInput(session, "new_height", value = 170)
       updateTextInput(session, "new_bp", value = "120/80")
+      updateTextInput(session, "new_nume", value = "")
+      updateTextInput(session, "new_prenume", value = "")
       
       showNotification("Pacient adăugat cu succes!", type = "message")
     }, error = function(e) {
@@ -202,20 +234,28 @@ server <- function(input, output, session) {
 
   
   output$total_patients <- renderValueBox({
-    valueBox(
-      nrow(processed_data()), 
-      "Total Pacienți", 
-      icon = icon("users"),
-      color = "blue"
-    )
+    data <- processed_data()
+    
+    # Filtrare după căutare
+    if (!is.null(input$patient_search) && input$patient_search != "") {
+      search_term <- tolower(input$patient_search)
+      data <- data %>%
+        filter(grepl(search_term, tolower(paste(nume, prenume, patient_id))))
+    }
+    
+    # Filtrare după risc
+    if (!is.null(input$risk_filter) && input$risk_filter != "Toți") {
+      data <- data %>% filter(risk_category == input$risk_filter)
+    }
+    
+    datatable(data %>% select(nume, prenume, patient_id, age, gender, risk_category),
+              options = list(pageLength = 5))
   })
   
   output$avg_age <- renderValueBox({
     valueBox(
-      round(mean(processed_data()$age, na.rm = TRUE)),  # Corectat - mutat paranteza
-      "Vârstă Medie", 
-      icon = icon("calendar"),
-      color = "green"
+      round(mean(processed_data()$age, na.rm = TRUE)),
+      "Vârstă Medie"
     )
   })
     
@@ -224,8 +264,7 @@ server <- function(input, output, session) {
       valueBox(
         high_risk_count, 
         "Pacienți Risc Ridicat", 
-        icon = icon("exclamation-triangle"),
-        color = ifelse(high_risk_count > 5, "red", "yellow")
+        icon = icon("exclamation-triangle")
       )
     })
     
@@ -238,8 +277,12 @@ server <- function(input, output, session) {
     
     output$patient_list <- renderDT({
       datatable(processed_data() %>% 
-                  select(patient_id, age, gender, region, risk_score),
-                options = list(pageLength = 5))
+                  select(nume, prenume, patient_id, age, gender, risk_score),
+                options = list(pageLength = 5,
+                               columnDefs = list(
+                                 list(targets = 0, title = "Nume"),
+                                 list(targets = 1, title = "Prenume")
+                               )))
     })
 }
 
