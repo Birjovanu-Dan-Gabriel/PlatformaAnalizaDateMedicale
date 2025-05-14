@@ -1,0 +1,4 @@
+"patient_id","nume","prenume","age","gender","region","weight_kg","height_cm","bmi","blood_pressure","cholesterol","glucose","smoker","diabetic","physical_activity"
+1,"Popescu","Ion",45,"M","Urban",85,175,27.8,"135/85","Normal",110,"Yes","No","Low"
+2,"Ionescu","Maria",62,"F","Rural",70,160,27.3,"150/90","High",140,"No","Yes","Low"
+3,"Vasilescu","Dan",28,"M","Urban",65,180,20.1,"120/80","Normal",95,"No","No","High"

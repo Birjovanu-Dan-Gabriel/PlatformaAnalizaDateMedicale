@@ -1,3 +1,4 @@
+# app.R
 library(shiny)
 library(shinymanager)
 library(digest)
@@ -6,42 +7,53 @@ library(dplyr)
 library(ggplot2)
 library(shinydashboard)
 library(shinythemes)
+library(htmltools)  # pentru export PDF
+library(webshot)    # pentru export PDF
+library(gridExtra)
+
+# incarca componenta ui.R
+source("ui.R")
 
 
-#Functia pentru crearea credentialelor pt logare
-credentials <- data.frame(
-  user = c("", "doctor"),
-  password = sapply(c("parola1", "parola2"), digest, algo = "sha256", serialize = FALSE),
-  role = c("user", "admin"),
-  stringsAsFactors = FALSE
-)
+# functia pentru crearea PDF-ului
+export_plot_to_pdf <- function(plot, filename) {
+  temp_plot <- tempfile(fileext = ".png")
+  ggsave(temp_plot, plot = plot, device = "png", width = 15, height = 6)
+  pdf_file <- paste0(tempfile(), ".pdf")
+  
+  # aici il este creat pdful din plot
+  pdf(pdf_file, width = 15, height = 6)
+  print(plot)
+  dev.off()
+  
+  return(pdf_file)
+}
 
-#Procesarea datelor
-source("R/data_processing.R") 
+#functia de exportare a tabelei in pdf
+export_table_to_pdf <- function(data, filename, title = "") {
+  pdf_file <- paste0(tempfile(), ".pdf")
+  
+  pdf(pdf_file, paper = "a4r", width = 11, height = 8)
+  gridExtra::grid.table(data)
+  if (title != "") {
+    grid::grid.text(title, y = 0.95, gp = grid::gpar(fontsize = 14))
+  }
+  dev.off()
+  
+  return(pdf_file)
+}
 
 
-#UI-ul pentru tematica si Titlu
-ui <- secure_app(
-  fluidPage(
-    theme = shinythemes::shinytheme("flatly"),  
-    titlePanel("Platformă Analiză Date Sănătate"),
-    uiOutput("main_ui")
-  )
-)
-
-
+#inceput functie SERVER
 server <- function(input, output, session) {
-
-  #Verificare credentiale
+  #verificarea credientialelor
   res_auth <- secure_server(check_credentials = check_credentials_custom(credentials))
-  
-  
   raw_data <- reactiveVal()
   processed_data <- reactiveVal()
- 
-  observe({
   
-    #Verificam daca exista fisierul raw_data.csv, daca nu declaram variabilele
+  observe({
+    #verificam daca exista fisierul raw_data.csv 
+    #in cazul in care acest fisier nu exista declaram variabilele
     if (file.exists("data/raw_data.csv")) {
       raw_data(read.csv("data/raw_data.csv", stringsAsFactors = FALSE))
     } else {
@@ -65,50 +77,55 @@ server <- function(input, output, session) {
       ))
     }
     
+    #procesam datele daca acestea exista
     if (nrow(raw_data()) > 0) {
       processed_data(preprocess_health_data(raw_data()))
       write.csv(processed_data(), "data/processed_data.csv", row.names = FALSE)
     }
   })
   
+  #render UI
   output$main_ui <- renderUI({
     req(res_auth$user)
     
-    #UI-ul pentru admin
+    # UI-ul pentru admini
     if (res_auth$role == "admin") {
       tabsetPanel(
-        
-        #pagina Date Brute
+        # pag1 - contine date brute date brute
         tabPanel("Date Brute", 
                  DTOutput("raw_data_table"),
                  textInput("search_patient", "Cauta pacient (nume, prenume sau ID)"),
                  actionButton("search_btn", "Cauta"),
                  tags$hr(),
-                 actionButton("process_data", "Proceseaza Date")),
+                 # Programul proceseaza datele automat la lansare si la adaugarea/stergerea a noi intrari
+                 # Cu toate acestea am adaugat acest buton in cazul in care procedeul implementat de procesare automata esueaza
+                 actionButton("process_data", "Proceseaza Date"),
+                 downloadButton("export_raw_pdf", "Export PDF")),
         
-        #pagina Date Prelucrate
+        # pag2 - contine datele prelucrate
         tabPanel("Date Prelucrate", 
                  DTOutput("processed_data_table"),
-                 plotOutput("age_distribution")),
+                 plotOutput("age_distribution"),
+                 downloadButton("export_processed_pdf", "Export PDF")),  
         
-        #pagina Statistici
-        #TODO adauga functia de export ca pdf
+        # pag3 - contine niste grafice si statistici
         tabPanel("Statistici",
                  fluidRow(
                    column(6, plotOutput("age_risk_plot")),
                    column(6, plotOutput("condition_distribution_plot"))
                  ),
                  fluidRow(
-                   valueBoxOutput("avg_glucose_box", width = 6),
+                   valueBoxOutput("avg_glucose_box", width = 6), 
                    valueBoxOutput("high_bp_box", width = 6)
-                 )
+                 ),
+                 downloadButton("export_stats_pdf", "Export PDF")
         ),
         
-        #pagina Administrare
+        # pag4 - administrare - pentru adaugare/stergere pacienti
         tabPanel("Administrare",
                  fluidRow(
                    column(6,
-                          #UI-ul pentru adaugarea unui nou pacient
+                          #adaugarea pacientului
                           h4("Adaugare Date"),
                           numericInput("new_patient_id", "ID Pacient", value = max(raw_data()$patient_id, na.rm = TRUE) + 1),
                           textInput("new_nume", "Nume", value = ""),
@@ -129,7 +146,7 @@ server <- function(input, output, session) {
                           actionButton("add_patient", "Adauga Pacient", class = "btn-primary")
                    ),
                    column(6,
-                          #UI-ul pentru stergearea unui pacient
+                          # stergerea pacientului
                           h4("Stergere Date"),
                           selectizeInput("delete_patient", "Selectează Pacient", 
                                          choices = NULL,
@@ -142,9 +159,9 @@ server <- function(input, output, session) {
                  ))
       )
     } else {
-      #UI-ul pentru asistenta
+      # UI-ul pentru asistena
       tabsetPanel(
-        #Prima pagina, Dashboard
+        # pag1 - dashboard - cateva informatii generale
         tabPanel("Dashboard",
                  fluidRow(
                    valueBoxOutput("total_patients", width = 4),
@@ -153,7 +170,7 @@ server <- function(input, output, session) {
                  ),
                  plotOutput("risk_plot")),
         
-        #Pagina Statistici
+        # pag2 - statistici - ca la admin
         tabPanel("Statistici",
                  fluidRow(
                    column(6, plotOutput("age_risk_plot")),
@@ -162,14 +179,15 @@ server <- function(input, output, session) {
                  fluidRow(
                    valueBoxOutput("avg_glucose_box", width = 6),
                    valueBoxOutput("high_bp_box", width = 6)
-                 )
+                 ),
+                 downloadButton("export_stats_pdf", "Export PDF")
         ),
         
-        #Pagina Lista Pacienti
+        # pag3 - lista pacientilor
         tabPanel("Lista Pacienti",
                  fluidRow(
                    column(6,
-                          textInput("patient_search_term", "Cauta pacient (nume, prenume sau ID)"),  # Schimbat nume
+                          textInput("patient_search_term", "Cauta pacient (nume, prenume sau ID)"),
                           actionButton("patient_search_btn", "Cauta") 
                    )
                  ),
@@ -179,20 +197,20 @@ server <- function(input, output, session) {
     }
   })
   
-  #afisare tabelul raw_data
+  # Display raw_data
   output$raw_data_table <- renderDT({
     datatable(raw_data(), 
               editable = TRUE,
               options = list(scrollX = TRUE))
   })
   
-  #afisare tabelul processed_data
+  # Display processed_data 
   output$processed_data_table <- renderDT({
     datatable(processed_data(),
               options = list(scrollX = TRUE))
   })
   
-  #graficul distributiei pe varste
+  # Display pt graficul cu distributia pe varsta
   output$age_distribution <- renderPlot({
     req(processed_data())
     ggplot(processed_data(), aes(x = age_group, fill = gender)) +
@@ -200,6 +218,7 @@ server <- function(input, output, session) {
       labs(title = "Distributie pe Varste", x = "Grup de Varsta", y = "Numar Pacienți")
   })
   
+  #Display grafic (ala cu patratele) corelatie vasta-risc
   output$age_risk_plot <- renderPlot({
     req(processed_data())
     ggplot(processed_data(), aes(x = age, y = risk_score, color = gender)) +
@@ -211,7 +230,7 @@ server <- function(input, output, session) {
       theme_minimal()
   })
   
-  # Grafic distributie conditii medicale
+  # Display grafic conditii medicale
   output$condition_distribution_plot <- renderPlot({
     req(processed_data())
     processed_data() %>%
@@ -225,7 +244,7 @@ server <- function(input, output, session) {
       theme_minimal()
   })
   
-  # ValueBox-uri suplimentare
+  # ValueBox cu glicemia medie
   output$avg_glucose_box <- renderValueBox({
     valueBox(
       round(mean(processed_data()$glucose, na.rm = TRUE)),
@@ -235,6 +254,7 @@ server <- function(input, output, session) {
     )
   })
   
+  # Valuebox cu nr cu tunesiunea mare
   output$high_bp_box <- renderValueBox({
     high_bp_count <- processed_data() %>%
       filter(bp_systolic > 140 | bp_diastolic > 90) %>%
@@ -248,11 +268,84 @@ server <- function(input, output, session) {
     )
   })
   
+  # Export handlers pt pdf
+  output$export_raw_pdf <- downloadHandler(
+    filename = function() {
+      paste("date-brute-", Sys.Date(), ".pdf", sep="")
+    },
+    content = function(file) {
+      temp_pdf <- export_table_to_pdf(raw_data(), "Date Brute - Export")
+      file.copy(temp_pdf, file)
+    }
+  )
   
+  #functia export pdf date-prelucrate
+  output$export_processed_pdf <- downloadHandler(
+    filename = function() {
+      paste("date-prelucrate-", Sys.Date(), ".pdf", sep = "")
+    },
+    content = function(file) {
+      #aici cream un pdf temporar
+      pdf(file, paper = "a4r", width = 14, height = 8)
+      
+      # Adaugă un titlu
+      grid::grid.text(paste("Raport Date Prelucrate -", Sys.Date()), 
+                      y = 0.95, gp = grid::gpar(fontsize = 16, fontface = "bold"))
+      
+      # Afișează tabelul
+      gridExtra::grid.table(processed_data())
+      
+      # Adaugă distribuția pe vârste
+      age_plot <- ggplot(processed_data(), aes(x = age_group, fill = gender)) +
+        geom_bar() +
+        labs(title = "Distributie pe Varste", x = "Grup de Varsta", y = "Numar Pacienți") +
+        theme_minimal()
+      print(age_plot)
+      
+      # Închide PDF-ul
+      dev.off()
+    }
+  )
   
-  # Gestionare evenimente
+  output$export_stats_pdf <- downloadHandler(
+    filename = function() {
+      paste("statistici-", Sys.Date(), ".pdf", sep="")
+    },
+    content = function(file) {
+      # Create a temporary directory
+      temp_dir <- tempdir()
+      plot_files <- c()
+      
+      # Save each plot
+      age_risk_plot <- ggplot(processed_data(), aes(x = age, y = risk_score, color = gender)) +
+        geom_point(alpha = 0.7) +
+        geom_smooth(method = "lm", se = FALSE) +
+        labs(title = "Corelație Vârstă - Scor de Risc",
+             x = "Varsta", y = "Scor de Risc") +
+        scale_color_manual(values = c("M" = "blue", "F" = "pink")) +
+        theme_minimal()
+      
+      condition_plot <- processed_data() %>%
+        count(diabetic, smoker, name = "count") %>%
+        ggplot(aes(x = diabetic, y = smoker, fill = count)) +
+        geom_tile() +
+        geom_text(aes(label = count), color = "white") +
+        scale_fill_gradient(low = "lightblue", high = "darkblue") +
+        labs(title = "Distribuție Condiții Medicale",
+             x = "Diabetic", y = "Fumator") +
+        theme_minimal()
+      
+      # Create PDF
+      pdf(file, width = 11, height = 8)
+      print(age_risk_plot)
+      print(condition_plot)
+      dev.off()
+    }
+  )
   
-  #Procesare date
+  # Event handlers
+  
+  # Process data
   observeEvent(input$process_data, {
     processed_data(preprocess_health_data(raw_data()))
     write.csv(processed_data(), "data/processed_data.csv", row.names = FALSE)
@@ -267,15 +360,14 @@ server <- function(input, output, session) {
     write.csv(df, "data/raw_data.csv", row.names = FALSE)
   })
   
-  
   observe({
-    # Creează o lista de nume complete ordonate
+    # Create ordered list of full names
     patient_choices <- raw_data() %>%
       mutate(full_name = paste(nume, prenume, " (ID:", patient_id, ")")) %>%
       arrange(nume, prenume) %>%
       select(full_name, patient_id)
     
-    # Actualizeaza dropdown-ul cu nume și ID-uri
+    # Update dropdown with names and IDs
     updateSelectizeInput(
       session, 
       "delete_patient",
@@ -283,7 +375,8 @@ server <- function(input, output, session) {
       server = TRUE
     )
   })
-    # Functia pentru butonul de search
+  
+  # Search function
   observeEvent(input$search_btn, {
     search_term <- tolower(input$search_patient)
     filtered <- raw_data() %>%
@@ -295,10 +388,8 @@ server <- function(input, output, session) {
     })
   })
   
-  # Functia de Cautare pentru pacient
+  # Search function for patient
   observeEvent(input$patient_search_btn, {
-    
-    
     search_term <- tolower(input$patient_search_term)
     filtered <- processed_data() %>%
       mutate(search_field = tolower(paste(nume, prenume, patient_id))) %>%
@@ -308,12 +399,9 @@ server <- function(input, output, session) {
       datatable(filtered %>% select(nume, prenume, patient_id, age, gender, risk_score),
                 options = list(pageLength = 5))
     })
-    output$raw_data_table <- renderDT({
-      datatable(filtered, editable = TRUE, options = list(scrollX = TRUE))
-    })
   })
   
-  # Functia pentru adaugare pacient
+  # Add patient function
   observeEvent(input$add_patient, {
     req(input$new_patient_id, input$new_age, input$new_gender)
     
@@ -336,19 +424,19 @@ server <- function(input, output, session) {
       stringsAsFactors = FALSE
     )
     
-    # Verificare format tensiune arteriala
+    # Blood pressure format validation
     if (!grepl("^\\d+/\\d+$", new_patient$blood_pressure)) {
       showNotification("Format tensiune invalid! Folosește formatul: 120/80", type = "error")
       return()
     }
     
-    # Actualizare date
+    # Update data
     tryCatch({
       updated_data <- bind_rows(raw_data(), new_patient)
       raw_data(updated_data)
       write.csv(updated_data, "data/raw_data.csv", row.names = FALSE)
       
-      # Resetare functiei de adaugare date
+      # Reset form
       updateNumericInput(session, "new_patient_id", value = max(updated_data$patient_id, na.rm = TRUE) + 1)
       updateTextInput(session, "new_nume", value = "")
       updateTextInput(session, "new_prenume", value = "")
@@ -369,9 +457,8 @@ server <- function(input, output, session) {
       showNotification(paste("Eroare la adăugare:", e$message), type = "error")
     })
   })
-
   
-  #Functia pentru stergerea pacientului
+  # Delete patient function
   observeEvent(input$delete_patient_btn, {
     req(input$delete_patient)
     
@@ -388,20 +475,18 @@ server <- function(input, output, session) {
       showNotification(paste("Eroare la ștergere:", e$message), type = "error")
     })
   })
-
   
   output$total_patients <- renderValueBox({
     data <- processed_data()
     
-    # FIltrare dupa cautare (doar daca e cazuk)
+    # Filter by search if needed
     if (!is.null(input$patient_search) && input$patient_search != "") {
       search_term <- tolower(input$patient_search)
       data <- data %>%
         filter(grepl(search_term, tolower(paste(nume, prenume, patient_id))))
     }
     
-    
-    #Output toat pacienti
+    # Total patients output
     valueBox(
       nrow(data),
       "Total Pacienti",
@@ -410,7 +495,7 @@ server <- function(input, output, session) {
     )
   })
   
-   # Output varsta medie
+  # Average age output
   output$avg_age <- renderValueBox({
     valueBox(
       round(mean(processed_data()$age, na.rm = TRUE)),
@@ -418,32 +503,34 @@ server <- function(input, output, session) {
     )
   })
   
-   # Output numar de pacienti cu risc ridicat
-    output$high_risk <- renderValueBox({
-      high_risk_count <- sum(processed_data()$risk_score >= 2, na.rm = TRUE)
-      valueBox(
-        high_risk_count, 
-        "Pacienti Risc Ridicat", 
-        icon = icon("exclamation-triangle")
-      )
-    })
-    
-    output$risk_plot <- renderPlot({
-      ggplot(processed_data(), aes(x = age, y = risk_score, color = gender)) +
-        geom_point(size = 3) +
-        geom_smooth(method = "lm") +
-        labs(title = "Scor de Risc pe Vârstă", x = "Vârstă", y = "Scor Risc")
-    })
-    
-    output$patient_list <- renderDT({
-      datatable(processed_data() %>% 
-                  select(nume, prenume, patient_id, age, gender, risk_score),
-                options = list(pageLength = 5,
-                               columnDefs = list(
-                                 list(targets = 0, title = "Nume"),
-                                 list(targets = 1, title = "Prenume")
-                               )))
-    })
+  # High risk patients output
+  output$high_risk <- renderValueBox({
+    high_risk_count <- sum(processed_data()$risk_score >= 2, na.rm = TRUE)
+    valueBox(
+      high_risk_count, 
+      "Pacienti Risc Ridicat", 
+      icon = icon("exclamation-triangle")
+    )
+  })
+  
+  output$risk_plot <- renderPlot({
+    ggplot(processed_data(), aes(x = age, y = risk_score, color = gender)) +
+      geom_point(size = 3) +
+      geom_smooth(method = "lm") +
+      labs(title = "Scor de Risc pe Vârstă", x = "Vârstă", y = "Scor Risc")
+  })
+  
+  output$patient_list <- renderDT({
+    datatable(processed_data() %>% 
+                select(nume, prenume, patient_id, age, gender, risk_score),
+              options = list(pageLength = 5,
+                             columnDefs = list(
+                               list(targets = 0, title = "Nume"),
+                               list(targets = 1, title = "Prenume")
+                             )))
+  })
 }
 
-shinyApp(ui, server)
+# Run the application
+shinyApp(ui = ui, server = server)
+

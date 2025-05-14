@@ -1,0 +1,4 @@
+"patient_id","nume","prenume","age","gender","region","weight_kg","height_cm","bmi","blood_pressure","cholesterol","glucose","smoker","diabetic","physical_activity","nume_complet","bp_valid","bp_systolic","bp_diastolic","age_group","risk_score","risk_category"
+2,"Ionescu","Maria",62,"F","Rural",70,160,27.3,"150/90","High",140,"No","Yes","Low","Ionescu Maria",TRUE,150,90,"51-65",2,"Medium"
+3,"Vasilescu","Dan",28,"M","Urban",65,180,20.1,"120/80","Normal",95,"No","No","High","Vasilescu Dan",TRUE,120,80,"19-35",1,"Low"
+1,"Popescu","Ion",45,"M","Urban",85,175,27.8,"135/85","Normal",110,"Yes","No","Low","Popescu Ion",TRUE,135,85,"36-50",1,"Low"
