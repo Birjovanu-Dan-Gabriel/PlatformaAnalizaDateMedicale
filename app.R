@@ -58,21 +58,21 @@ server <- function(input, output, session) {
       raw_data(read.csv("data/raw_data.csv", stringsAsFactors = FALSE))
     } else {
       raw_data(data.frame(
-        patient_id = integer(),
-        nume = character(),
-        prenume = character(),
-        age = numeric(),
-        gender = character(),
-        region = character(),
-        weight_kg = numeric(),
-        height_cm = numeric(),
-        bmi = numeric(),
-        blood_pressure = character(),
-        cholesterol = character(),
-        glucose = numeric(),
-        smoker = character(),
-        diabetic = character(),
-        physical_activity = character(),
+        ID = integer(),
+        Nume = character(),
+        Prenume = character(),
+        Varsta = numeric(),
+        Gen = character(),
+        Regiune = character(),
+        Greutate = numeric(),
+        Inaltime = numeric(),
+        Bmi = numeric(),
+        Tensiune = character(),
+        Colesterol = character(),
+        Glucoza = numeric(),
+        Fumator = character(),
+        Diabetic = character(),
+        Activitate = character(),
         stringsAsFactors = FALSE
       ))
     }
@@ -94,7 +94,7 @@ server <- function(input, output, session) {
         # pag1 - contine date brute date brute
         tabPanel("Date Brute", 
                  DTOutput("raw_data_table"),
-                 textInput("search_patient", "Cauta pacient (nume, prenume sau ID)"),
+                 textInput("search_patient", "Cauta pacient (Nume, Prenume sau ID)"),
                  actionButton("search_btn", "Cauta"),
                  tags$hr(),
                  # Programul proceseaza datele automat la lansare si la adaugarea/stergerea a noi intrari
@@ -127,9 +127,9 @@ server <- function(input, output, session) {
                    column(6,
                           #adaugarea pacientului
                           h4("Adaugare Date"),
-                          numericInput("new_patient_id", "ID Pacient", value = max(raw_data()$patient_id, na.rm = TRUE) + 1),
+                          numericInput("new_ID", "ID Pacient", value = max(raw_data()$ID, na.rm = TRUE) + 1),
                           textInput("new_nume", "Nume", value = ""),
-                          textInput("new_prenume", "Prenume", value = ""),
+                          textInput("new_Prenume", "Prenume", value = ""),
                           numericInput("new_age", "Varsta", value = 30),
                           selectInput("new_gender", "Gen", c("M", "F")),
                           textInput("new_region", "Regiune", value = "Urban"),
@@ -151,7 +151,7 @@ server <- function(input, output, session) {
                           selectizeInput("delete_patient", "Selectează Pacient", 
                                          choices = NULL,
                                          options = list(
-                                           placeholder = 'Caută dupa nume',
+                                           placeholder = 'Caută dupa Nume',
                                            maxOptions = 100
                                          )),
                           actionButton("delete_patient_btn", "Sterge Pacient", class = "btn-danger")
@@ -187,7 +187,7 @@ server <- function(input, output, session) {
         tabPanel("Lista Pacienti",
                  fluidRow(
                    column(6,
-                          textInput("patient_search_term", "Cauta pacient (nume, prenume sau ID)"),
+                          textInput("patient_search_term", "Cauta pacient (Nume, Prenume sau ID)"),
                           actionButton("patient_search_btn", "Cauta") 
                    )
                  ),
@@ -213,7 +213,7 @@ server <- function(input, output, session) {
   # Display pt graficul cu distributia pe varsta
   output$age_distribution <- renderPlot({
     req(processed_data())
-    ggplot(processed_data(), aes(x = age_group, fill = gender)) +
+    ggplot(processed_data(), aes(x = Grup_Varsta, fill = Gen)) +
       geom_bar() +
       labs(title = "Distributie pe Varste", x = "Grup de Varsta", y = "Numar Pacienți")
   })
@@ -221,7 +221,7 @@ server <- function(input, output, session) {
   #Display grafic (ala cu patratele) corelatie vasta-risc
   output$age_risk_plot <- renderPlot({
     req(processed_data())
-    ggplot(processed_data(), aes(x = age, y = risk_score, color = gender)) +
+    ggplot(processed_data(), aes(x = Varsta, y = risk_score, color = Gen)) +
       geom_point(alpha = 0.7) +
       geom_smooth(method = "lm", se = FALSE) +
       labs(title = "Corelație Vârstă - Scor de Risc",
@@ -234,8 +234,8 @@ server <- function(input, output, session) {
   output$condition_distribution_plot <- renderPlot({
     req(processed_data())
     processed_data() %>%
-      count(diabetic, smoker, name = "count") %>%
-      ggplot(aes(x = diabetic, y = smoker, fill = count)) +
+      count(Diabetic, Fumator, name = "count") %>%
+      ggplot(aes(x = Diabetic, y = Fumator, fill = count)) +
       geom_tile() +
       geom_text(aes(label = count), color = "white") +
       scale_fill_gradient(low = "lightblue", high = "darkblue") +
@@ -247,7 +247,7 @@ server <- function(input, output, session) {
   # ValueBox cu glicemia medie
   output$avg_glucose_box <- renderValueBox({
     valueBox(
-      round(mean(processed_data()$glucose, na.rm = TRUE)),
+      round(mean(processed_data()$Glucoza, na.rm = TRUE)),
       "Glicemie Medie (mg/dL)", 
       icon = icon("vial"),
       color = "purple"
@@ -268,42 +268,58 @@ server <- function(input, output, session) {
     )
   })
   
-  # Export handlers pt pdf
+  output$export_processed_pdf <- downloadHandler(
+    filename = function() {
+      paste("date-prelucrate-", Sys.Date(), ".pdf", sep="")
+    },
+    content = function(file) {
+      # Create the PDF directly
+      pdf(file, paper = "a4", width = 8.27, height = 11.69)
+      
+      data <- raw_data()
+      mid_col <- ceiling(ncol(data)/2) + 1
+      
+      # Table 1
+      grid::grid.text("Date Prelucrate - Partea 1", y = 0.95, 
+                      gp = grid::gpar(fontsize = 14))
+      gridExtra::grid.table(data[, 1:mid_col])
+      
+      # Table 2
+      grid::grid.newpage()
+      grid::grid.text("Date Prelucrate - Partea 2", y = 0.95, 
+                      gp = grid::gpar(fontsize = 14))
+      gridExtra::grid.table(data[, c(1:2, (mid_col+1):ncol(data))])
+      
+      dev.off()
+      flush.console()
+    }
+  )
+  
+  
   output$export_raw_pdf <- downloadHandler(
     filename = function() {
       paste("date-brute-", Sys.Date(), ".pdf", sep="")
     },
     content = function(file) {
-      temp_pdf <- export_table_to_pdf(raw_data(), "Date Brute - Export")
-      file.copy(temp_pdf, file)
-    }
-  )
-  
-  #functia export pdf date-prelucrate
-  output$export_processed_pdf <- downloadHandler(
-    filename = function() {
-      paste("date-prelucrate-", Sys.Date(), ".pdf", sep = "")
-    },
-    content = function(file) {
-      #aici cream un pdf temporar
-      pdf(file, paper = "a4r", width = 14, height = 8)
+      # Create the PDF directly
+      pdf(file, paper = "a4", width = 8.27, height = 11.69)
       
-      # Adaugă un titlu
-      grid::grid.text(paste("Raport Date Prelucrate -", Sys.Date()), 
-                      y = 0.95, gp = grid::gpar(fontsize = 16, fontface = "bold"))
+      data <- raw_data()
+      mid_col <- ceiling(ncol(data)/2)
       
-      # Afișează tabelul
-      gridExtra::grid.table(processed_data())
+      # Table 1
+      grid::grid.text("Date Brute - Partea 1", y = 0.95, 
+                      gp = grid::gpar(fontsize = 14))
+      gridExtra::grid.table(data[, 1:mid_col])
       
-      # Adaugă distribuția pe vârste
-      age_plot <- ggplot(processed_data(), aes(x = age_group, fill = gender)) +
-        geom_bar() +
-        labs(title = "Distributie pe Varste", x = "Grup de Varsta", y = "Numar Pacienți") +
-        theme_minimal()
-      print(age_plot)
+      # Table 2
+      grid::grid.newpage()
+      grid::grid.text("Date Brute - Partea 2", y = 0.95, 
+                      gp = grid::gpar(fontsize = 14))
+      gridExtra::grid.table(data[, c(1:2, (mid_col+1):ncol(data))])
       
-      # Închide PDF-ul
       dev.off()
+      flush.console()
     }
   )
   
@@ -317,7 +333,7 @@ server <- function(input, output, session) {
       plot_files <- c()
       
       # Save each plot
-      age_risk_plot <- ggplot(processed_data(), aes(x = age, y = risk_score, color = gender)) +
+      age_risk_plot <- ggplot(processed_data(), aes(x = Varsta, y = risk_score, color = Gen)) +
         geom_point(alpha = 0.7) +
         geom_smooth(method = "lm", se = FALSE) +
         labs(title = "Corelație Vârstă - Scor de Risc",
@@ -326,8 +342,8 @@ server <- function(input, output, session) {
         theme_minimal()
       
       condition_plot <- processed_data() %>%
-        count(diabetic, smoker, name = "count") %>%
-        ggplot(aes(x = diabetic, y = smoker, fill = count)) +
+        count(Diabetic, Fumator, name = "count") %>%
+        ggplot(aes(x = Diabetic, y = Fumator, fill = count)) +
         geom_tile() +
         geom_text(aes(label = count), color = "white") +
         scale_fill_gradient(low = "lightblue", high = "darkblue") +
@@ -363,15 +379,15 @@ server <- function(input, output, session) {
   observe({
     # Create ordered list of full names
     patient_choices <- raw_data() %>%
-      mutate(full_name = paste(nume, prenume, " (ID:", patient_id, ")")) %>%
-      arrange(nume, prenume) %>%
-      select(full_name, patient_id)
+      mutate(full_name = paste(Nume, Prenume, " (ID:", ID, ")")) %>%
+      arrange(Nume, Prenume) %>%
+      select(full_name, ID)
     
     # Update dropdown with names and IDs
     updateSelectizeInput(
       session, 
       "delete_patient",
-      choices = setNames(patient_choices$patient_id, patient_choices$full_name),
+      choices = setNames(patient_choices$ID, patient_choices$full_name),
       server = TRUE
     )
   })
@@ -380,7 +396,7 @@ server <- function(input, output, session) {
   observeEvent(input$search_btn, {
     search_term <- tolower(input$search_patient)
     filtered <- raw_data() %>%
-      mutate(search_field = tolower(paste(nume, prenume, patient_id))) %>%
+      mutate(search_field = tolower(paste(Nume, Prenume, ID))) %>%
       filter(grepl(search_term, search_field))
     
     output$raw_data_table <- renderDT({
@@ -392,40 +408,40 @@ server <- function(input, output, session) {
   observeEvent(input$patient_search_btn, {
     search_term <- tolower(input$patient_search_term)
     filtered <- processed_data() %>%
-      mutate(search_field = tolower(paste(nume, prenume, patient_id))) %>%
+      mutate(search_field = tolower(paste(Nume, Prenume, ID))) %>%
       filter(grepl(search_term, search_field))
     
     output$patient_list <- renderDT({
-      datatable(filtered %>% select(nume, prenume, patient_id, age, gender, risk_score),
+      datatable(filtered %>% select(Nume, Prenume, ID, Varsta, Gen, risk_score),
                 options = list(pageLength = 5))
     })
   })
   
   # Add patient function
   observeEvent(input$add_patient, {
-    req(input$new_patient_id, input$new_age, input$new_gender)
+    req(input$new_ID, input$new_age, input$new_gender)
     
     new_patient <- data.frame(
-      patient_id = as.numeric(input$new_patient_id),
-      nume = as.character(input$new_nume),
-      prenume = as.character(input$new_prenume),
-      age = as.numeric(input$new_age),
-      gender = as.character(input$new_gender),
-      region = as.character(input$new_region),
-      weight_kg = as.numeric(input$new_weight),
-      height_cm = as.numeric(input$new_height),
-      bmi = round(input$new_weight/((input$new_height/100)^2), 1),
-      blood_pressure = as.character(input$new_bp),
-      cholesterol = as.character(input$new_cholesterol),
-      glucose = as.numeric(input$new_glucose),
-      smoker = as.character(input$new_smoker),
-      diabetic = as.character(input$new_diabetic),
-      physical_activity = as.character(input$new_activity),
+      ID = as.numeric(input$new_ID),
+      Nume = as.character(input$new_nume),
+      Prenume = as.character(input$new_Prenume),
+      Varsta = as.numeric(input$new_age),
+      Gen = as.character(input$new_gender),
+      Regiune = as.character(input$new_region),
+      Greutate = as.numeric(input$new_weight),
+      Inaltime = as.numeric(input$new_height),
+      Bmi = round(input$new_weight/((input$new_height/100)^2), 1),
+      Tensiune = as.character(input$new_bp),
+      Colesterol = as.character(input$new_cholesterol),
+      Glucoza = as.numeric(input$new_glucose),
+      Fumator = as.character(input$new_smoker),
+      Diabetic = as.character(input$new_diabetic),
+      Activitate = as.character(input$new_activity),
       stringsAsFactors = FALSE
     )
     
     # Blood pressure format validation
-    if (!grepl("^\\d+/\\d+$", new_patient$blood_pressure)) {
+    if (!grepl("^\\d+/\\d+$", new_patient$Tensiune)) {
       showNotification("Format tensiune invalid! Folosește formatul: 120/80", type = "error")
       return()
     }
@@ -437,17 +453,17 @@ server <- function(input, output, session) {
       write.csv(updated_data, "data/raw_data.csv", row.names = FALSE)
       
       # Reset form
-      updateNumericInput(session, "new_patient_id", value = max(updated_data$patient_id, na.rm = TRUE) + 1)
+      updatenumericInput(session, "new_ID", value = max(updated_data$ID, na.rm = TRUE) + 1)
       updateTextInput(session, "new_nume", value = "")
-      updateTextInput(session, "new_prenume", value = "")
-      updateNumericInput(session, "new_age", value = 30)
+      updateTextInput(session, "new_Prenume", value = "")
+      updatenumericInput(session, "new_age", value = 30)
       updateSelectInput(session, "new_gender", selected = "M")
       updateTextInput(session, "new_region", value = "Urban")
-      updateNumericInput(session, "new_weight", value = 70)
-      updateNumericInput(session, "new_height", value = 170)
+      updatenumericInput(session, "new_weight", value = 70)
+      updatenumericInput(session, "new_height", value = 170)
       updateTextInput(session, "new_bp", value = "120/80")
       updateSelectInput(session, "new_cholesterol", selected = "Normal")
-      updateNumericInput(session, "new_glucose", value = 100)
+      updatenumericInput(session, "new_glucose", value = 100)
       updateSelectInput(session, "new_smoker", selected = "No")
       updateSelectInput(session, "new_diabetic", selected = "No")
       updateSelectInput(session, "new_activity", selected = "Moderate")
@@ -464,7 +480,7 @@ server <- function(input, output, session) {
     
     tryCatch({
       updated_data <- raw_data() %>% 
-        filter(patient_id != as.numeric(input$delete_patient))
+        filter(ID != as.numeric(input$delete_patient))
       
       raw_data(updated_data)
       write.csv(updated_data, "data/raw_data.csv", row.names = FALSE)
@@ -483,7 +499,7 @@ server <- function(input, output, session) {
     if (!is.null(input$patient_search) && input$patient_search != "") {
       search_term <- tolower(input$patient_search)
       data <- data %>%
-        filter(grepl(search_term, tolower(paste(nume, prenume, patient_id))))
+        filter(grepl(search_term, tolower(paste(Nume, Prenume, ID))))
     }
     
     # Total patients output
@@ -495,10 +511,10 @@ server <- function(input, output, session) {
     )
   })
   
-  # Average age output
+  # Average Varsta output
   output$avg_age <- renderValueBox({
     valueBox(
-      round(mean(processed_data()$age, na.rm = TRUE)),
+      round(mean(processed_data()$Varsta, na.rm = TRUE)),
       "Varsta Medie"
     )
   })
@@ -514,7 +530,7 @@ server <- function(input, output, session) {
   })
   
   output$risk_plot <- renderPlot({
-    ggplot(processed_data(), aes(x = age, y = risk_score, color = gender)) +
+    ggplot(processed_data(), aes(x = Varsta, y = risk_score, color = Gen)) +
       geom_point(size = 3) +
       geom_smooth(method = "lm") +
       labs(title = "Scor de Risc pe Vârstă", x = "Vârstă", y = "Scor Risc")
@@ -522,7 +538,7 @@ server <- function(input, output, session) {
   
   output$patient_list <- renderDT({
     datatable(processed_data() %>% 
-                select(nume, prenume, patient_id, age, gender, risk_score),
+                select(Nume, Prenume, ID, Varsta, Gen, risk_score),
               options = list(pageLength = 5,
                              columnDefs = list(
                                list(targets = 0, title = "Nume"),

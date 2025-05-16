@@ -2,7 +2,7 @@ preprocess_health_data <- function(raw_data) {
   require(dplyr)
   
   #Verificare structure date
-  required_cols <- c("patient_id", "nume", "prenume", "age", "gender", "region", "weight_kg", "height_cm", "blood_pressure")
+    required_cols <- c("ID", "Nume", "Prenume", "Varsta", "Gen", "Regiune", "Greutate", "Inaltime", "Tensiune")
   if (!all(required_cols %in% names(raw_data))) {
     stop("Structură invalidă a datelor. Coloane necesare: ", paste(required_cols, collapse = ", "))
   }
@@ -10,40 +10,40 @@ preprocess_health_data <- function(raw_data) {
   #Prelucrea datelor
   clean_data <- raw_data %>%
     mutate(
-      nume_complet = paste(nume, prenume),
-      across(c(age, weight_kg, height_cm), as.numeric),
-      gender = as.character(gender),
-      region = as.character(region),
-      blood_pressure = as.character(blood_pressure),
+      Nume_complet = paste(Nume, Prenume),
+        across(c(Varsta, Greutate, Inaltime), as.numeric),
+      Gen = as.character(Gen),
+          Regiune = as.character(Regiune),
+      Tensiune = as.character(Tensiune),
       
-      # Calcul BMI cu validare
-      bmi = case_when(
-        is.na(weight_kg) | is.na(height_cm) ~ NA_real_,
-        height_cm <= 0 ~ NA_real_,
-        TRUE ~ round(weight_kg/((height_cm/100)^2), 1)
+      # Calcul Bmi cu validare
+      Bmi = case_when(
+        is.na(Greutate) | is.na(Inaltime) ~ NA_real_,
+        Inaltime <= 0 ~ NA_real_,
+        TRUE ~ round(Greutate/((Inaltime/100)^2), 1)
       ),
       
       # Validare tensiune arteriala
-      bp_valid = grepl("^\\d+/\\d+$", blood_pressure),
-      bp_systolic = ifelse(bp_valid, as.numeric(sapply(strsplit(blood_pressure, "/"), `[`, 1)), NA),
-      bp_diastolic = ifelse(bp_valid, as.numeric(sapply(strsplit(blood_pressure, "/"), `[`, 2)), NA),
+      t_valida = grepl("^\\d+/\\d+$", Tensiune),
+        t_sistolica = ifelse(t_valida, as.numeric(sapply(strsplit(Tensiune, "/"), `[`, 1)), NA),
+        t_diastolica = ifelse(t_valida, as.numeric(sapply(strsplit(Tensiune, "/"), `[`, 2)), NA),
       
       # Crearea Grupelor de varsta
-      age_group = cut(age,
+      Grup_Varsta = cut(Varsta,
                       breaks = c(0, 18, 35, 50, 65, Inf),
                       labels = c("0-18", "19-35", "36-50", "51-65", "65+"),
                       right = FALSE),
       
       # Calcul risc
-      risk_score = case_when(
-        !is.na(bmi) & !is.na(bp_systolic) & bmi > 30 & bp_systolic > 140 ~ 3,
-        !is.na(bmi) & !is.na(bp_systolic) & (bmi > 30 | bp_systolic > 140) ~ 2,
+      Scor_Risc = case_when(
+        !is.na(Bmi) & !is.na(t_sistolica) & Bmi > 30 & t_sistolica > 140 ~ 3,
+        !is.na(Bmi) & !is.na(t_sistolica) & (Bmi > 30 | t_sistolica > 140) ~ 2,
         TRUE ~ 1
       ),
-      risk_category = factor(risk_score, levels = 1:3, labels = c("Low", "Medium", "High"))
+      Categorie_Risc = factor(Scor_Risc, levels = 1:3, labels = c("Low", "Medium", "High"))
     ) %>%
-    filter(!is.na(patient_id)) %>%
-    arrange(desc(risk_score), age)
+    filter(!is.na(ID)) %>%
+    arrange(desc(Scor_Risc), Varsta)
   
   return(clean_data)
 }

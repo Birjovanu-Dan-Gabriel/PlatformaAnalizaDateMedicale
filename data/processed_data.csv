@@ -1,4 +1,4 @@
-"patient_id","nume","prenume","age","gender","region","weight_kg","height_cm","bmi","blood_pressure","cholesterol","glucose","smoker","diabetic","physical_activity","nume_complet","bp_valid","bp_systolic","bp_diastolic","age_group","risk_score","risk_category"
+"ID","Nume","Prenume","Varsta","Gen","Regiune","Greutate","Inaltime","Bmi","Tensiune","Colesterol","Glucoza","Fumator","Diabetic","Activitate","Nume_complet","t_valida","t_sistolica","t_diastolica","Grup_Varsta","Scor_Risc","Categorie_Risc"
 17,"Voinea","Nicolae",58,"M","Rural",92,173,30.7,"155/98","High",135,"Yes","Yes","Low","Voinea Nicolae",TRUE,155,98,"51-65",3,"High"
 9,"Marin","Vasile",56,"M","Rural",80,175,26.1,"142/92","High",125,"Yes","Yes","Low","Marin Vasile",TRUE,142,92,"51-65",2,"Medium"
 5,"Radu","Mihai",63,"M","Rural",85,170,29.4,"150/95","High",130,"Yes","Yes","Moderate","Radu Mihai",TRUE,150,95,"51-65",2,"Medium"

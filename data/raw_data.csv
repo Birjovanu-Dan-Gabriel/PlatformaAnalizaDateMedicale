@@ -1,4 +1,4 @@
-"patient_id","nume","prenume","age","gender","region","weight_kg","height_cm","bmi","blood_pressure","cholesterol","glucose","smoker","diabetic","physical_activity"
+"ID","Nume","Prenume","Varsta","Gen","Regiune","Greutate","Inaltime","Bmi","Tensiune","Colesterol","Glucoza","Fumator","Diabetic","Activitate"
 1,"Popescu","Ion",35,"M","Urban",78,175,25.5,"120/80","Normal",98,"Yes","No","Moderate"
 2,"Ionescu","Maria",42,"F","Rural",65,162,24.8,"130/85","Borderline",105,"No","No","Low"
 3,"Popa","Andrei",28,"M","Urban",90,180,27.8,"140/90","High",110,"Yes","No","High"
